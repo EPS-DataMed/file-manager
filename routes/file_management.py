@@ -1,3 +1,4 @@
+import uvicorn
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 import boto3
@@ -21,6 +22,13 @@ def is_pdf(filename: str) -> bool:
     mimetype, _ = mimetypes.guess_type(filename)
     return mimetype == 'application/pdf'
 
+def file_size_within_bounds(contents) -> bool:
+    KB = 1024
+    MB = 1024 * KB
+    MAX_FILE_SIZE = 200 * MB
+    size_in_bytes = len(contents)
+    return size_in_bytes <= MAX_FILE_SIZE
+
 @app.post("/upload/")
 async def upload_files(files: UploadFile = File(...)):
     if not is_pdf(files.filename):
@@ -29,6 +37,9 @@ async def upload_files(files: UploadFile = File(...)):
     try:
         contents = await files.read()
 
+        if not file_size_within_bounds(contents):
+            raise HTTPException(status_code=400, detail="The File size exceeds the allowed limit of 200MB")
+        
         s3_client.put_object(
             Bucket=os.environ['S3_BUCKET_NAME'],
             Key=files.filename,
@@ -36,8 +47,6 @@ async def upload_files(files: UploadFile = File(...)):
         )
 
         OBJECT_KEY = files.filename
-        print(OBJECT_KEY)
-        print('OBJECT_KEY')
         file_url = s3_client.generate_presigned_url(
             ClientMethod='get_object',
             Params={'Bucket': os.environ['S3_BUCKET_NAME'], 'Key': OBJECT_KEY},
@@ -51,14 +60,27 @@ async def upload_files(files: UploadFile = File(...)):
 @app.delete("/delete/{filename}")
 async def delete_file(filename: str):
     try:
+        # Verify if the file exists in the S3 bucket
+        response = s3_client.head_object(
+            Bucket=os.environ['S3_BUCKET_NAME'],
+            Key=filename
+        )
+
         s3_client.delete_object(
             Bucket=os.environ['S3_BUCKET_NAME'],
             Key=filename
         )
         return {"message": f"The file '{filename}' has been successfully deleted"}
     except ClientError as e:
-        raise HTTPException(status_code=500, detail="Error while deleting the file on AWS S3")
+        if e.response['Error']['Code'] == '404':
+            raise HTTPException(status_code=404, detail=f"The file '{filename}' does not exist")
+        else:
+            raise HTTPException(status_code=500, detail="Error while deleting the file on AWS S3")
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        "file_management:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+    )
