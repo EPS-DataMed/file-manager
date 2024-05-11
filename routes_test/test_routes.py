@@ -8,7 +8,7 @@ from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
-from routes.file_management import app, MAX_FILE_SIZE, MB
+from routes.file_management import app, MAX_FILE_SIZE_STRING, MAX_FILE_SIZE, MB
 from botocore.exceptions import ClientError
 
 @pytest.fixture
@@ -22,7 +22,20 @@ def test_upload_pdf_file(client):
 
     response = client.put("/upload/", files=file)
     assert response.status_code == 200
-    assert response.json() == {'message': f"The file '{pdf_filename}' has been successfully uploaded"}
+    assert response.json() == {'message': [f"The file '{pdf_filename}' has been successfully uploaded"]}
+
+def test_upload_multiple_pdf_files(client):
+    pdf_files = [
+        ("python_test_file1.pdf", b"dummy pdf content 1"),
+        ("python_test_file2.pdf", b"dummy pdf content 2"),
+        ("python_test_file3.pdf", b"dummy pdf content 3")
+    ]
+    files = [("files", (name, content, "application/pdf")) for name, content in pdf_files]
+
+    response = client.put("/upload/", files=files)
+    assert response.status_code == 200
+    uploaded_files = [f"The file '{name}' has been successfully uploaded" for name, _ in pdf_files]
+    assert response.json() == {'message': uploaded_files}
 
 def test_upload_non_pdf_file(client):
     non_pdf_filename = "python_test_file.txt"
@@ -31,8 +44,8 @@ def test_upload_non_pdf_file(client):
 
     response = client.put("/upload/", files=file)
     assert response.status_code == 400
-    assert "Only PDF files are allowed" in response.json()["detail"]
-
+    assert response.json() == {'message': [ f"The file '{non_pdf_filename}' is not a PDF, only PDF files are allowed"]}
+   
 def test_upload_large_pdf_file(client):
     large_filename = "python_test_large_file.pdf"
     large_file_size = MAX_FILE_SIZE + MB
@@ -41,7 +54,7 @@ def test_upload_large_pdf_file(client):
 
     response = client.put("/upload/", files=file)
     assert response.status_code == 400
-    assert "The File size exceeds the allowed limit of 200MB" in response.json()["detail"]
+    assert response.json() == {'message': [ f"The File '{large_filename}' exceeds the size limit of '{MAX_FILE_SIZE_STRING}"]}
 
 def test_upload_pdf_files_aws_exception(client, monkeypatch):
     def mock_put_object(Bucket, Key, Body):
@@ -55,7 +68,7 @@ def test_upload_pdf_files_aws_exception(client, monkeypatch):
 
     response = client.put("/upload/", files=file)    
     assert response.status_code == 500
-    assert "Error while uploading the file to AWS S3" in response.json()["detail"]
+    assert response.json() == {'message': [f"Error while uploading the file '{pdf_filename}' to AWS S3"]}
 
 def test_delete_pdf_file_aws_exception(client, monkeypatch):
     def mock_delete_object(Bucket, Key):
@@ -72,7 +85,7 @@ def test_delete_pdf_file_aws_exception(client, monkeypatch):
 
     response = client.delete(f"/delete/{pdf_filename}")
     assert response.status_code == 500
-    assert "Error while deleting the file on AWS S3" in response.json()["detail"]
+    assert f"Error while deleting the file '{pdf_filename}' on AWS S3" in response.json()["detail"]
 
 def test_delete_existing_pdf_file(client):
     pdf_filename = "python_test_file.pdf"
