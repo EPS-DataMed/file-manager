@@ -1,0 +1,11 @@
+## Instalação e execução
+
+1- É **necessário** instalar as dependências do projeto, executando o seguinte comando no diretório raiz do projeto
+
+    pip install --upgrade -r requirements.txt
+
+## Execução de testes
+
+1- Para executar os testes do projeto basta executar o comando a seguir no diretório route_test
+
+    pytest

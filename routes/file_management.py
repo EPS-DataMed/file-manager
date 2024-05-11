@@ -18,19 +18,21 @@ s3_client = boto3.client(
     region_name=os.environ['S3_REGION_NAME']
 )
 
+# Define the maximum file size permitted for uploads
+KB = 1024
+MB = 1024 * KB
+MAX_FILE_SIZE = 200 * MB
+
 def is_pdf(filename: str) -> bool:
     mimetype, _ = mimetypes.guess_type(filename)
     return mimetype == 'application/pdf'
 
 def file_size_within_bounds(contents) -> bool:
-    KB = 1024
-    MB = 1024 * KB
-    MAX_FILE_SIZE = 200 * MB
     size_in_bytes = len(contents)
     return size_in_bytes <= MAX_FILE_SIZE
 
-@app.post("/upload/")
-async def upload_files(files: UploadFile = File(...)):
+@app.put("/upload/")
+async def upload_pdf_file(files: UploadFile = File(...)):
     if not is_pdf(files.filename):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
@@ -46,14 +48,7 @@ async def upload_files(files: UploadFile = File(...)):
             Body=contents
         )
 
-        OBJECT_KEY = files.filename
-        file_url = s3_client.generate_presigned_url(
-            ClientMethod='get_object',
-            Params={'Bucket': os.environ['S3_BUCKET_NAME'], 'Key': OBJECT_KEY},
-            ExpiresIn=1800
-        )
-
-        return JSONResponse(content={"file_url": file_url}, status_code=200)
+        return JSONResponse(content={"message": f"The file '{files.filename}' has been successfully uploaded"}, status_code=200)
     except ClientError as e:
         raise HTTPException(status_code=500, detail="Error while uploading the file to AWS S3")
 
@@ -70,7 +65,8 @@ async def delete_file(filename: str):
             Bucket=os.environ['S3_BUCKET_NAME'],
             Key=filename
         )
-        return {"message": f"The file '{filename}' has been successfully deleted"}
+
+        return JSONResponse(content={"message": f"The file '{filename}' has been successfully deleted"}, status_code=200)
     except ClientError as e:
         if e.response['Error']['Code'] == '404':
             raise HTTPException(status_code=404, detail=f"The file '{filename}' does not exist")
