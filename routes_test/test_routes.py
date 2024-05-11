@@ -22,7 +22,7 @@ def test_upload_pdf_file(client):
 
     response = client.put("/upload/", files=file)
     assert response.status_code == 200
-    assert response.json() == {'message': f"The file '{pdf_filename}' has been successfully uploded"}
+    assert response.json() == {'message': f"The file '{pdf_filename}' has been successfully uploaded"}
 
 def test_upload_non_pdf_file(client):
     non_pdf_filename = "python_test_file.txt"
@@ -91,4 +91,4 @@ def test_delete_non_existing_pdf_file(client):
 
     response = client.delete(f"/delete/{non_existing_pdf_file}")
     assert response.status_code == 404
-    assert response.json() == {'message': f"The file '{non_existing_pdf_file}' does not exist"}
+    assert response.json() == {'detail': f"The file '{non_existing_pdf_file}' does not exist"}
