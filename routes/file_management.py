@@ -66,7 +66,7 @@ async def upload_pdf_files(files: List[UploadFile] = File(...)):
     if files_messages:
         return JSONResponse(content={"message": files_messages}, status_code=real_status_code)
     else:
-        return JSONResponse(content={"message": "No files were uploaded"}, status_code=real_status_code)
+        return JSONResponse(content={"message": "No files were uploaded"}, status_code=400)
 
 @app.delete("/delete/{filename}")
 async def delete_file(filename: str):
