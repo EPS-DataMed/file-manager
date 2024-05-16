@@ -3,20 +3,17 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 import boto3
 from botocore.exceptions import ClientError
-from dotenv import load_dotenv
 import os
 import mimetypes
 from typing import List
-
-load_dotenv()
 
 app = FastAPI()
 
 s3_client = boto3.client(
     "s3",
-    aws_access_key_id=os.environ.get('S3_ACCESS_KEY_ID'),
-    aws_secret_access_key=os.environ.get('S3_SECRET_ACCESS_KEY'),
-    region_name=os.environ.get('S3_REGION_NAME')
+    aws_access_key_id=os.getenv('S3_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('S3_SECRET_ACCESS_KEY'),
+    region_name=os.getenv('S3_REGION_NAME')
 )
 
 # Define the maximum file size permitted for uploads
@@ -52,9 +49,9 @@ async def upload_pdf_files(files: List[UploadFile] = File(...)):
                 if real_status_code != 500:
                     real_status_code = 400
                 continue
-
+            
             s3_client.put_object(
-                Bucket=os.environ.get('S3_BUCKET_NAME'),
+                Bucket=os.getenv('S3_BUCKET_NAME'),
                 Key=uploaded_file.filename,
                 Body=contents
             )
@@ -73,12 +70,12 @@ async def delete_file(filename: str):
     try:
         # Verify if the file exists in the S3 bucket
         response = s3_client.head_object(
-            Bucket=os.environ.get('S3_BUCKET_NAME'),
+            Bucket=os.getenv('S3_BUCKET_NAME'),
             Key=filename
         )
 
         s3_client.delete_object(
-            Bucket=os.environ.get('S3_BUCKET_NAME'),
+            Bucket=os.getenv('S3_BUCKET_NAME'),
             Key=filename
         )
 
