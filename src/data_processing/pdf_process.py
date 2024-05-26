@@ -1,5 +1,5 @@
-# Aqui nos vamos tentar extrair o valor de 1 só dado do pdf, com a formatação necessário no caso
-# vamos tentar com a Hemoglobina
+# Aqui tentaremos capturar mais de 2 valores ao mesmo tempo
+# Rodando ok, com arquivo PDF do laboratório da Unimed
 
 import os
 import fitz  # PyMuPDF
@@ -17,18 +17,25 @@ def pdf_to_text(pdf_path):
 
     return text
 
-def extract_hemoglobin_value(text):
-    # Regular expression pattern to find Hemoglobina value
-    pattern = r'Hemoglobina[^0-9]*([\d,.]+)[^\d]*'
+def extract_blood_values(text):
+    # Regular expression patterns to find values of Hemoglobina, Hematócrito, and Eritrócitos
+    pattern_hemoglobin = r'Hemoglobina[^0-9]*([\d,.]+)[^\d]*'
+    pattern_hematocrit = r'Hematócrito[^0-9]*([\d,.]+)[^\d]*'
+    pattern_eritrocitos = r'Eritrócitos[^0-9]*([\d,.]+)[^\d]*'
     
-    # Search for the pattern in the text
-    match = re.search(pattern, text)
+    # Search for the patterns in the text
+    match_hemoglobin = re.search(pattern_hemoglobin, text)
+    match_hematocrit = re.search(pattern_hematocrit, text)
+    match_eritrocitos = re.search(pattern_eritrocitos, text)
     
-    # If a match is found, return the value, otherwise return None
-    if match:
-        return match.group(1)
+    # If matches are found, return the values, otherwise return None
+    if match_hemoglobin and match_hematocrit and match_eritrocitos:
+        hemoglobin_value = match_hemoglobin.group(1)
+        hematocrit_value = match_hematocrit.group(1)
+        eritrocitos_value = match_eritrocitos.group(1)
+        return hemoglobin_value, hematocrit_value, eritrocitos_value
     else:
-        return None
+        return None, None, None
 
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,8 +46,10 @@ pdf_path = os.path.join(script_dir, 'hemograma.pdf')  # Caminho absoluto para o 
 # Convert PDF to text
 pdf_text = pdf_to_text(pdf_path)
 
-# Extract Hemoglobina value
-hemoglobin_value = extract_hemoglobin_value(pdf_text)
+# Extract values
+hemoglobin_value, hematocrit_value, eritrocitos_value = extract_blood_values(pdf_text)
 
-# Print the extracted Hemoglobina value
-print(hemoglobin_value)
+# Print the extracted values
+print("Valor da Hemoglobina:", hemoglobin_value)
+print("Valor do Hematócrito:", hematocrit_value)
+print("Valor dos Eritrócitos (Hemácias):", eritrocitos_value)
