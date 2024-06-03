@@ -6,7 +6,7 @@
 
 2- Para rodar o projeto, basta executar o comando abaixo na raiz do projeto
 
-    python3 routes/file.py
+    python3 sr/app/routers/file.py
 
 3- Em seguida é possível consutar a documentação e realizar requisições em
 

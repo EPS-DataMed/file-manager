@@ -1,13 +1,42 @@
+import os
+from os.path import dirname, abspath
+d = dirname(dirname(abspath(__file__)))
+import sys
+sys.path.append(d)
+
 import uvicorn
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Query
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Depends
 from fastapi.responses import JSONResponse
 import boto3
 from botocore.exceptions import ClientError
-import os
 import mimetypes
-from typing import List
+from typing import List, Annotated
+from pydantic import BaseModel
+from datetime import datetime
+import models
+from database import SessionLocal
+from sqlalchemy.orm import Session
 
 app = FastAPI()
+
+class Exame(BaseModel):
+    id: int
+    id_usuario: int
+    nome_exame: str
+    url: str
+    data_submissao: datetime
+
+    class Config:
+        orm_mode = True
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+db_dependency = Annotated[Session, Depends(get_db)]
 
 s3_client = boto3.client(
     "s3",
@@ -30,8 +59,8 @@ def file_size_within_bounds(contents) -> bool:
     size_in_bytes = len(contents)
     return size_in_bytes <= MAX_FILE_SIZE
 
-@app.put("/upload/")
-async def upload_pdf_files(user_id: str = Form(...), files: List[UploadFile] = File(...)):
+@app.put("/upload/{user_id}")
+async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFile] = File(...)):
     files_messages = []
     real_status_code = 200
     for uploaded_file in files:
@@ -57,18 +86,37 @@ async def upload_pdf_files(user_id: str = Form(...), files: List[UploadFile] = F
                 Key=s3_key,
                 Body=contents
             )
+
+            url = s3_client.generate_presigned_url(
+                'get_object', 
+                Params={'Bucket': os.getenv('S3_BUCKET_NAME'),
+                'Key': s3_key}
+            )
+
+            #TODO FIX URL STRING ON DB
+            url = "aws_url_on_s3/{'s3_key'}"
+            
+            exame = models.Exame(
+                id_usuario=user_id,
+                nome_exame=uploaded_file.filename,
+                url=url,
+                data_submissao=datetime.utcnow()
+            )
+            db.add(exame)
+            db.commit()
+            db.refresh(exame)
+
             files_messages.append(f"The file '{uploaded_file.filename}' has been successfully uploaded for user '{user_id}'")
         except ClientError as e:
             files_messages.append(f"Error while uploading the file '{uploaded_file.filename}' to AWS S3 for user '{user_id}'")
             real_status_code = 500
-    
     if files_messages:
         return JSONResponse(content={"message": files_messages}, status_code=real_status_code)
     else:
         return JSONResponse(content={"message": "No files were uploaded"}, status_code=400)
 
-@app.delete("/delete/")
-async def delete_file(user_id: str, filename: str):
+@app.delete("/delete/{user_id}/{filename}")
+async def delete_file(user_id: int, filename: str, db: db_dependency):
     try:
         s3_key = f"{user_id}/{filename}"
 
@@ -83,6 +131,11 @@ async def delete_file(user_id: str, filename: str):
             Key=s3_key
         )
 
+        exame = db.query(models.Exame).filter_by(id_usuario=user_id, nome_exame=filename).first()
+        if exame:
+            db.delete(exame)
+            db.commit()
+
         return JSONResponse(content={"message": f"The file '{filename}' for user '{user_id}' has been successfully deleted"}, status_code=200)
     except ClientError as e:
         if e.response['Error']['Code'] == '404':
@@ -90,8 +143,8 @@ async def delete_file(user_id: str, filename: str):
         else:
             raise HTTPException(status_code=500, detail=f"Error while deleting the file '{filename}' for user '{user_id}' on AWS S3")
 
-@app.get("/download/")
-async def download_files(user_id: str, filenames: List[str] = Query(...)):
+@app.get("/download/{user_id}")
+async def download_files(user_id: int, filenames: List[str] = Query(...)):
     files_messages = []
     real_status_code = 200
     
@@ -124,6 +177,13 @@ async def download_files(user_id: str, filenames: List[str] = Query(...)):
                 real_status_code = 500
 
     return JSONResponse(content={"message": files_messages}, status_code=real_status_code)
+
+@app.get("/exames/{user_id}")
+async def list_user_exames(user_id: int, db: Session = Depends(get_db)):
+    exames = db.query(models.Exame).filter_by(id_usuario=user_id).all()
+    if not exames:
+        raise HTTPException(status_code=404, detail=f"No exames found for user with ID {user_id}")
+    return exames
 
 if __name__ == "__main__":
     uvicorn.run(
