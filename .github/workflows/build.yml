@@ -26,6 +26,7 @@ jobs:
           S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
           S3_REGION_NAME: ${{ secrets.S3_REGION_NAME }}
           S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
