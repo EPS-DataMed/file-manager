@@ -16,8 +16,16 @@ from datetime import datetime
 import models
 from database import SessionLocal
 from sqlalchemy.orm import Session
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class Exame(BaseModel):
     id: int
@@ -59,7 +67,7 @@ def file_size_within_bounds(contents) -> bool:
     size_in_bytes = len(contents)
     return size_in_bytes <= MAX_FILE_SIZE
 
-@app.put("/upload/{user_id}")
+@app.post("/data/upload/{user_id}")
 async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFile] = File(...)):
     files_messages = []
     real_status_code = 200
@@ -92,9 +100,6 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
                 Params={'Bucket': os.getenv('S3_BUCKET_NAME'),
                 'Key': s3_key}
             )
-
-            #TODO FIX URL STRING ON DB
-            url = "aws_url_on_s3/{'s3_key'}"
             
             exame = models.Exame(
                 id_usuario=user_id,
@@ -115,7 +120,7 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
     else:
         return JSONResponse(content={"message": "No files were uploaded"}, status_code=400)
 
-@app.delete("/delete/{user_id}/{filename}")
+@app.delete("/data/delete/{user_id}/{filename}")
 async def delete_file(user_id: int, filename: str, db: db_dependency):
     try:
         s3_key = f"{user_id}/{filename}"
@@ -143,7 +148,7 @@ async def delete_file(user_id: int, filename: str, db: db_dependency):
         else:
             raise HTTPException(status_code=500, detail=f"Error while deleting the file '{filename}' for user '{user_id}' on AWS S3")
 
-@app.get("/download/{user_id}")
+@app.get("/data/download/{user_id}")
 async def download_files(user_id: int, filenames: List[str] = Query(...)):
     files_messages = []
     real_status_code = 200
@@ -178,7 +183,7 @@ async def download_files(user_id: int, filenames: List[str] = Query(...)):
 
     return JSONResponse(content={"message": files_messages}, status_code=real_status_code)
 
-@app.get("/exames/{user_id}")
+@app.get("/data/exames/{user_id}")
 async def list_user_exames(user_id: int, db: Session = Depends(get_db)):
     exames = db.query(models.Exame).filter_by(id_usuario=user_id).all()
     if not exames:
@@ -189,6 +194,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "file:app",
         host="0.0.0.0",
-        port=8000,
+        port=8002,
         reload=True,
     )
