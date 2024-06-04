@@ -35,7 +35,7 @@ class Exame(BaseModel):
     data_submissao: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 def get_db():
     db = SessionLocal()
@@ -194,6 +194,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "file:app",
         host="0.0.0.0",
-        port=8003,
+        port=8000,
         reload=True,
     )
