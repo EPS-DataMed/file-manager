@@ -8,7 +8,7 @@ from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
-from routes.file_management import app, MAX_FILE_SIZE_STRING, MAX_FILE_SIZE, MB
+from app.routers.file import app, MAX_FILE_SIZE_STRING, MAX_FILE_SIZE, MB
 from botocore.exceptions import ClientError
 
 @pytest.fixture
@@ -60,7 +60,7 @@ def test_upload_pdf_files_aws_exception(client, monkeypatch):
     def mock_put_object(Bucket, Key, Body):
         raise ClientError({"Error": {"Code": "MockException", "Message": "Simulated AWS S3 Error"}}, "put_object")
     
-    monkeypatch.setattr("routes.file_management.s3_client.put_object", mock_put_object)
+    monkeypatch.setattr("app.routers.file.s3_client.put_object", mock_put_object)
     
     pdf_filename = "python_test_file.pdf"
     pdf_content = b"dummy pdf content"
@@ -74,7 +74,7 @@ def test_delete_pdf_file_aws_exception(client, monkeypatch):
     def mock_delete_object(Bucket, Key):
         raise ClientError({"Error": {"Code": "MockException", "Message": "Simulated AWS S3 Error"}}, "delete_object")
     
-    monkeypatch.setattr("routes.file_management.s3_client.delete_object", mock_delete_object)
+    monkeypatch.setattr("app.routers.file.s3_client.delete_object", mock_delete_object)
     
     pdf_filename = "python_test_file.pdf"
     pdf_content = b"dummy pdf content"
