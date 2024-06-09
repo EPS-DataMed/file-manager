@@ -69,11 +69,12 @@ def file_size_within_bounds(contents) -> bool:
 
 @app.post("/data/upload/{user_id}")
 async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFile] = File(...)):
-    files_messages = []
+    file_info = []
+    messages = []
     real_status_code = 200
     for uploaded_file in files:
         if not is_pdf(uploaded_file.filename):
-            files_messages.append(f"The file '{uploaded_file.filename}' is not a PDF, only PDF files are allowed")
+            messages.append(f"The file '{uploaded_file.filename}' is not a PDF, only PDF files are allowed")
             if real_status_code != 500:
                 real_status_code = 400
             continue
@@ -82,7 +83,7 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
             contents = await uploaded_file.read()
 
             if not file_size_within_bounds(contents):
-                files_messages.append(f"The File '{uploaded_file.filename}' exceeds the size limit of '{MAX_FILE_SIZE_STRING}'")
+                messages.append(f"The File '{uploaded_file.filename}' exceeds the size limit of '{MAX_FILE_SIZE_STRING}")
                 if real_status_code != 500:
                     real_status_code = 400
                 continue
@@ -111,17 +112,27 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
             db.commit()
             db.refresh(exame)
 
-            files_messages.append(f"The file '{uploaded_file.filename}' has been successfully uploaded for user '{user_id}'")
+            messages.append(f"The file '{uploaded_file.filename}' has been successfully uploaded for user '{user_id}'")
+            exame_id = exame.id
+            file_info.append({
+                "idExam": exame_id,
+                "name": uploaded_file.filename
+            })
         except ClientError as e:
-            files_messages.append(f"Error while uploading the file '{uploaded_file.filename}' to AWS S3 for user '{user_id}'")
+            messages.append(f"Error while uploading the file '{uploaded_file.filename}' to AWS S3 for user '{user_id}'")
             real_status_code = 500
-    if files_messages:
-        return JSONResponse(content={"message": files_messages}, status_code=real_status_code)
-    else:
-        return JSONResponse(content={"message": "No files were uploaded"}, status_code=400)
 
-@app.delete("/data/delete/{user_id}/{filename}")
-async def delete_file(user_id: int, filename: str, db: db_dependency):
+    if real_status_code == 200:
+        return JSONResponse(content={"status": 200, "message": "File(s) uploaded successfully!", "data": file_info}, status_code=200)
+    else:
+        return JSONResponse(content={"status": real_status_code, "message": messages, "data": file_info}, status_code=real_status_code)
+
+@app.delete("/data/delete/{user_id}/{file_id}")
+async def delete_file(user_id: int, file_id: str, db: db_dependency):
+
+    filename = db.query(models.Exame).filter_by(id_usuario=user_id, id=file_id).first().nome_exame
+    if not filename:
+        raise HTTPException(status_code=404, detail="File not found")
     try:
         s3_key = f"{user_id}/{filename}"
 
@@ -136,55 +147,23 @@ async def delete_file(user_id: int, filename: str, db: db_dependency):
             Key=s3_key
         )
 
-        exame = db.query(models.Exame).filter_by(id_usuario=user_id, nome_exame=filename).first()
-        if exame:
-            db.delete(exame)
-            db.commit()
+        exame = db.query(models.Exame).filter_by(id_usuario=user_id, id=file_id).first()
+        db.delete(exame)
+        db.commit()
 
-        return JSONResponse(content={"message": f"The file '{filename}' for user '{user_id}' has been successfully deleted"}, status_code=200)
+        return JSONResponse(content={"status": 200, "message": f"The file '{filename}' for user '{user_id}' has been successfully deleted"}, status_code=200)
     except ClientError as e:
         if e.response['Error']['Code'] == '404':
-            raise HTTPException(status_code=404, detail=f"The file '{filename}' for user '{user_id}' does not exist")
+            raise HTTPException(status_code=404, detail=f"The file '{filename}' for user '{user_id}' does not exist on AWS S3")
         else:
             raise HTTPException(status_code=500, detail=f"Error while deleting the file '{filename}' for user '{user_id}' on AWS S3")
 
-@app.get("/data/download/{user_id}")
-async def download_files(user_id: int, filenames: List[str] = Query(...)):
-    files_messages = []
-    real_status_code = 200
-    
-    for filename in filenames:
-        s3_key = f"{user_id}/{filename}"
-        try:
-            # Verify if the file exists in the S3 bucket
-            s3_client.head_object(
-                Bucket=os.getenv('S3_BUCKET_NAME'),
-                Key=s3_key
-            )
-
-            url = s3_client.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': os.getenv('S3_BUCKET_NAME'), 'Key': s3_key},
-                # URL expiration time in seconds
-                ExpiresIn=3600  
-            )
-            files_messages.append({
-                "filename": filename,
-                "url": url
-            })
-        except ClientError as e:
-            if e.response['Error']['Code'] == '404':
-                files_messages.append(f"The file '{filename}' for user '{user_id}' does not exist")
-                if real_status_code != 500:
-                    real_status_code = 404
-            else:
-                files_messages.append(f"Error while generating download URL for the file '{filename}' for user '{user_id}' from AWS S3")
-                real_status_code = 500
-
-    return JSONResponse(content={"message": files_messages}, status_code=real_status_code)
-
 @app.get("/data/exames/{user_id}")
 async def list_user_exames(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(models.Usuario).filter_by(id=user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
+
     exames = db.query(models.Exame).filter_by(id_usuario=user_id).all()
     if not exames:
         raise HTTPException(status_code=404, detail=f"No exames found for user with ID {user_id}")
