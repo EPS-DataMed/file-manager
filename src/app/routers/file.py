@@ -83,7 +83,7 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
             contents = await uploaded_file.read()
 
             if not file_size_within_bounds(contents):
-                messages.append(f"The File '{uploaded_file.filename}' exceeds the size limit of '{MAX_FILE_SIZE_STRING}")
+                messages.append(f"The File '{uploaded_file.filename}' exceeds the size limit of '{MAX_FILE_SIZE_STRING}'")
                 if real_status_code != 500:
                     real_status_code = 400
                 continue
@@ -114,8 +114,11 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
 
             messages.append(f"The file '{uploaded_file.filename}' has been successfully uploaded for user '{user_id}'")
             file_info.append({
-                "testId": test.id,
-                "name": uploaded_file.filename
+                "user_id": test.user_id,
+                "id": test.id,
+                "url": test.url,
+                "test_name": uploaded_file.filename,
+                "submission_date": test.submission_date.isoformat()
             })
         except ClientError as e:
             messages.append(f"Error while uploading the file '{uploaded_file.filename}' to AWS S3 for user '{user_id}'")
