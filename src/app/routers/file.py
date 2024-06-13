@@ -79,6 +79,13 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
                 real_status_code = 400
             continue
 
+        existing_test = db.query(models.Test).filter_by(user_id=user_id, test_name=uploaded_file.filename).first()
+        if existing_test:
+            messages.append(f"A test with the name '{uploaded_file.filename}' already exists for user '{user_id}'")
+            if real_status_code != 500:
+                real_status_code = 400
+            continue
+
         try:
             contents = await uploaded_file.read()
 
@@ -168,9 +175,10 @@ async def list_user_tests(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
 
     tests = db.query(models.Test).filter_by(user_id=user_id).all()
-    if not tests:
-        raise HTTPException(status_code=404, detail=f"No tests found for user with ID {user_id}")
-    return tests
+    test_data = [Test.from_orm(test).dict() for test in tests]
+
+    return JSONResponse(content={"status": 200, "message": f"The following tests found for user with ID {user_id}", "data": test_data}, status_code=200)
+
 
 if __name__ == "__main__":
     uvicorn.run(
