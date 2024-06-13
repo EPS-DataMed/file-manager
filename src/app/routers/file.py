@@ -27,12 +27,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class Exame(BaseModel):
+class Test(BaseModel):
     id: int
-    id_usuario: int
-    nome_exame: str
+    user_id: int
+    test_name: str
     url: str
-    data_submissao: datetime
+    submission_date: datetime
 
     class Config:
         from_attributes = True
@@ -102,20 +102,19 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
                 'Key': s3_key}
             )
             
-            exame = models.Exame(
-                id_usuario=user_id,
-                nome_exame=uploaded_file.filename,
+            test = models.Test(
+                user_id=user_id,
+                test_name=uploaded_file.filename,
                 url=url,
-                data_submissao=datetime.utcnow()
+                submission_date=datetime.utcnow()
             )
-            db.add(exame)
+            db.add(test)
             db.commit()
-            db.refresh(exame)
+            db.refresh(test)
 
             messages.append(f"The file '{uploaded_file.filename}' has been successfully uploaded for user '{user_id}'")
-            exame_id = exame.id
             file_info.append({
-                "idExam": exame_id,
+                "testId": test.id,
                 "name": uploaded_file.filename
             })
         except ClientError as e:
@@ -130,7 +129,7 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
 @app.delete("/data/delete/{user_id}/{file_id}")
 async def delete_file(user_id: int, file_id: str, db: db_dependency):
 
-    filename = db.query(models.Exame).filter_by(id_usuario=user_id, id=file_id).first().nome_exame
+    filename = db.query(models.Test).filter_by(user_id=user_id, id=file_id).first().test_name
     if not filename:
         raise HTTPException(status_code=404, detail="File not found")
     try:
@@ -147,9 +146,10 @@ async def delete_file(user_id: int, file_id: str, db: db_dependency):
             Key=s3_key
         )
 
-        exame = db.query(models.Exame).filter_by(id_usuario=user_id, id=file_id).first()
-        db.delete(exame)
-        db.commit()
+        test = db.query(models.Test).filter_by(user_id=user_id, id=file_id).first()
+        if test:
+            db.delete(test)
+            db.commit()
 
         return JSONResponse(content={"status": 200, "message": f"The file '{filename}' for user '{user_id}' has been successfully deleted"}, status_code=200)
     except ClientError as e:
@@ -158,16 +158,16 @@ async def delete_file(user_id: int, file_id: str, db: db_dependency):
         else:
             raise HTTPException(status_code=500, detail=f"Error while deleting the file '{filename}' for user '{user_id}' on AWS S3")
 
-@app.get("/data/exames/{user_id}")
-async def list_user_exames(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(models.Usuario).filter_by(id=user_id).first()
+@app.get("/data/tests/{user_id}")
+async def list_user_tests(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter_by(id=user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
 
-    exames = db.query(models.Exame).filter_by(id_usuario=user_id).all()
-    if not exames:
-        raise HTTPException(status_code=404, detail=f"No exames found for user with ID {user_id}")
-    return exames
+    tests = db.query(models.Test).filter_by(user_id=user_id).all()
+    if not tests:
+        raise HTTPException(status_code=404, detail=f"No tests found for user with ID {user_id}")
+    return tests
 
 if __name__ == "__main__":
     uvicorn.run(
