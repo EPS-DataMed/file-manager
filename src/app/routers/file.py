@@ -137,7 +137,7 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
         return JSONResponse(content={"status": real_status_code, "message": messages, "data": file_info}, status_code=real_status_code)
 
 @app.delete("/data/delete/{user_id}/{file_id}")
-async def delete_file(user_id: int, file_id: str, db: db_dependency):
+async def delete_file(user_id: int, file_id: int, db: db_dependency):
 
     filename = db.query(models.Test).filter_by(user_id=user_id, id=file_id).first().test_name
     if not filename:
@@ -175,7 +175,12 @@ async def list_user_tests(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
 
     tests = db.query(models.Test).filter_by(user_id=user_id).all()
-    test_data = [Test.from_orm(test).dict() for test in tests]
+    test_data = []
+    for test in tests:
+        test_dict = Test.from_orm(test).dict()
+        if 'submission_date' in test_dict and isinstance(test_dict['submission_date'], datetime):
+            test_dict['submission_date'] = test_dict['submission_date'].isoformat()
+        test_data.append(test_dict)
 
     return JSONResponse(content={"status": 200, "message": f"The following tests found for user with ID {user_id}", "data": test_data}, status_code=200)
 
