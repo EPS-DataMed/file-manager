@@ -5,7 +5,7 @@ import sys
 sys.path.append(d)
 
 import uvicorn
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Depends
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from fastapi.responses import JSONResponse
 import boto3
 from botocore.exceptions import ClientError
@@ -67,7 +67,7 @@ def file_size_within_bounds(contents) -> bool:
     size_in_bytes = len(contents)
     return size_in_bytes <= MAX_FILE_SIZE
 
-@app.post("/data/upload/{user_id}")
+@app.post("/file/upload/{user_id}")
 async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFile] = File(...)):
     file_info = []
     messages = []
@@ -136,7 +136,7 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
     else:
         return JSONResponse(content={"status": real_status_code, "message": messages, "data": file_info}, status_code=real_status_code)
 
-@app.delete("/data/delete/{user_id}/{file_id}")
+@app.delete("/file/delete/{user_id}/{file_id}")
 async def delete_file(user_id: int, file_id: int, db: db_dependency):
 
     filename = db.query(models.Test).filter_by(user_id=user_id, id=file_id).first().test_name
@@ -168,7 +168,7 @@ async def delete_file(user_id: int, file_id: int, db: db_dependency):
         else:
             raise HTTPException(status_code=500, detail=f"Error while deleting the file '{filename}' for user '{user_id}' on AWS S3")
 
-@app.get("/data/tests/{user_id}")
+@app.get("/file/tests/{user_id}")
 async def list_user_tests(user_id: int, db: Session = Depends(get_db)):
     user = db.query(models.User).filter_by(id=user_id).first()
     if not user:
@@ -183,7 +183,6 @@ async def list_user_tests(user_id: int, db: Session = Depends(get_db)):
         test_data.append(test_dict)
 
     return JSONResponse(content={"status": 200, "message": f"The following tests found for user with ID {user_id}", "data": test_data}, status_code=200)
-
 
 if __name__ == "__main__":
     uvicorn.run(
