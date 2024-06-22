@@ -4,7 +4,7 @@ from database import Base
 from datetime import datetime
 
 class User(Base):
-    __tablename__ = "users"
+    __tablename__ = "Users"
 
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String, nullable=False)
@@ -15,10 +15,10 @@ class User(Base):
     creation_date = Column(DateTime, default=func.now())
 
 class Test(Base):
-    __tablename__ = "tests"
+    __tablename__ = "Tests"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('users.id'))
+    user_id = Column(Integer, ForeignKey('Users.id'))
     test_name = Column(String, index=True)
     url = Column(String)
     submission_date = Column(DateTime, default=datetime.utcnow)
