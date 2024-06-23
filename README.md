@@ -6,11 +6,11 @@
 
 2- Para rodar o projeto, basta executar o comando abaixo na raiz do projeto
 
-    python3 sr/app/routers/file.py
+    uvicorn app.main:app --host 0.0.0.0 --port 8003
 
 3- Em seguida é possível consutar a documentação e realizar requisições em
 
-    http://0.0.0.0:8000/docs
+    http://0.0.0.0:8004/docs
 
 ## Execução de testes
 

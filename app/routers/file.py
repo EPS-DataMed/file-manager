@@ -4,71 +4,26 @@ d = dirname(dirname(abspath(__file__)))
 import sys
 sys.path.append(d)
 
-import uvicorn
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
-from fastapi.responses import JSONResponse
-import boto3
-from botocore.exceptions import ClientError
-import mimetypes
-from typing import List, Annotated
-from pydantic import BaseModel
 from datetime import datetime
-import models
-from database import SessionLocal
+from typing import List
+
+from fastapi import APIRouter, UploadFile, HTTPException, File, Depends
+from fastapi.responses import JSONResponse
+from botocore.exceptions import ClientError
 from sqlalchemy.orm import Session
-from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+import models
+from schemas import Test
+from database import get_db
+from utils import s3_client, is_pdf, file_size_within_bounds, MAX_FILE_SIZE_STRING
+
+router = APIRouter(
+    prefix="/file",
+    tags=['File']
 )
 
-class Test(BaseModel):
-    id: int
-    user_id: int
-    test_name: str
-    url: str
-    submission_date: datetime
-
-    class Config:
-        from_attributes = True
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-db_dependency = Annotated[Session, Depends(get_db)]
-
-s3_client = boto3.client(
-    "s3",
-    aws_access_key_id=os.getenv('S3_ACCESS_KEY_ID'),
-    aws_secret_access_key=os.getenv('S3_SECRET_ACCESS_KEY'),
-    region_name=os.getenv('S3_REGION_NAME')
-)
-
-# Define the maximum file size permitted for uploads
-KB = 1024
-MB = 1024 * KB
-MAX_FILE_SIZE = 200 * MB
-MAX_FILE_SIZE_STRING = "200MB"
-
-def is_pdf(filename: str) -> bool:
-    mimetype, _ = mimetypes.guess_type(filename)
-    return mimetype == 'application/pdf'
-
-def file_size_within_bounds(contents) -> bool:
-    size_in_bytes = len(contents)
-    return size_in_bytes <= MAX_FILE_SIZE
-
-@app.post("/file/upload/{user_id}")
-async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFile] = File(...)):
+@router.post("/upload/{user_id}")
+async def upload_pdf_files(user_id: int, files: List[UploadFile] = File(...), db: Session = Depends(get_db)):
     file_info = []
     messages = []
     real_status_code = 200
@@ -136,8 +91,8 @@ async def upload_pdf_files(user_id: int, db: db_dependency, files: List[UploadFi
     else:
         return JSONResponse(content={"status": real_status_code, "message": messages, "data": file_info}, status_code=real_status_code)
 
-@app.delete("/file/delete/{user_id}/{file_id}")
-async def delete_file(user_id: int, file_id: int, db: db_dependency):
+@router.delete("/delete/{user_id}/{file_id}")
+async def delete_file(user_id: int, file_id: int, db: Session = Depends(get_db)):
 
     filename = db.query(models.Test).filter_by(user_id=user_id, id=file_id).first().test_name
     if not filename:
@@ -168,7 +123,7 @@ async def delete_file(user_id: int, file_id: int, db: db_dependency):
         else:
             raise HTTPException(status_code=500, detail=f"Error while deleting the file '{filename}' for user '{user_id}' on AWS S3")
 
-@app.get("/file/tests/{user_id}")
+@router.get("/tests/{user_id}")
 async def list_user_tests(user_id: int, db: Session = Depends(get_db)):
     user = db.query(models.User).filter_by(id=user_id).first()
     if not user:
@@ -183,11 +138,3 @@ async def list_user_tests(user_id: int, db: Session = Depends(get_db)):
         test_data.append(test_dict)
 
     return JSONResponse(content={"status": 200, "message": f"The following tests found for user with ID {user_id}", "data": test_data}, status_code=200)
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "file:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-    )
