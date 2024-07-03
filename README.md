@@ -10,7 +10,7 @@
 
 3- Em seguida é possível consutar a documentação e realizar requisições em
 
-    http://0.0.0.0:8004/docs
+    http://0.0.0.0:8003/docs
 
 ## Execução de testes
 

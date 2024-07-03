@@ -94,9 +94,12 @@ async def upload_pdf_files(user_id: int, files: List[UploadFile] = File(...), db
 @router.delete("/delete/{user_id}/{file_id}")
 async def delete_file(user_id: int, file_id: int, db: Session = Depends(get_db)):
 
-    filename = db.query(models.Test).filter_by(user_id=user_id, id=file_id).first().test_name
-    if not filename:
+    file = db.query(models.Test).filter_by(user_id=user_id, id=file_id).first()
+    if not file:
         raise HTTPException(status_code=404, detail="File not found")
+
+    filename = file.test_name
+    
     try:
         s3_key = f"{user_id}/{filename}"
 
@@ -111,10 +114,8 @@ async def delete_file(user_id: int, file_id: int, db: Session = Depends(get_db))
             Key=s3_key
         )
 
-        test = db.query(models.Test).filter_by(user_id=user_id, id=file_id).first()
-        if test:
-            db.delete(test)
-            db.commit()
+        db.delete(file)
+        db.commit()
 
         return JSONResponse(content={"status": 200, "message": f"The file '{filename}' for user '{user_id}' has been successfully deleted"}, status_code=200)
     except ClientError as e:
