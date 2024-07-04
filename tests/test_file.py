@@ -1,17 +1,14 @@
 import os
-from os.path import dirname, abspath
-d = dirname(dirname(abspath(__file__)))
-import sys
-sys.path.append(d)
-
 from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
-from app.routers.file import app, get_db, MAX_FILE_SIZE_STRING, MAX_FILE_SIZE, MB
 from botocore.exceptions import ClientError
 
+from app.main import app
+from app.database import get_db
+from app.utils import MAX_FILE_SIZE_STRING, MAX_FILE_SIZE, MB
 
 mock_session = MagicMock()
 def override_get_db():

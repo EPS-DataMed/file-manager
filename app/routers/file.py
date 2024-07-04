@@ -1,9 +1,4 @@
 import os
-from os.path import dirname, abspath
-d = dirname(dirname(abspath(__file__)))
-import sys
-sys.path.append(d)
-
 from datetime import datetime
 from typing import List
 
@@ -12,10 +7,10 @@ from fastapi.responses import JSONResponse
 from botocore.exceptions import ClientError
 from sqlalchemy.orm import Session
 
-import models
-from schemas import Test
-from database import get_db
-from utils import s3_client, is_pdf, file_size_within_bounds, MAX_FILE_SIZE_STRING
+from app import models
+from app.schemas import Test
+from app.database import get_db
+from app.utils import s3_client, is_pdf, file_size_within_bounds, MAX_FILE_SIZE_STRING
 
 router = APIRouter(
     prefix="/file",
