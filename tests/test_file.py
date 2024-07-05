@@ -1,6 +1,7 @@
 import os
 from io import BytesIO
-from datetime import date
+from datetime import date, datetime
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -38,7 +39,12 @@ def setup_db():
     yield
     Base.metadata.drop_all(bind=engine)
 
-def test_upload_pdf_file():
+@patch("app.utils.s3_client.put_object")
+@patch("app.utils.s3_client.generate_presigned_url")
+def test_upload_pdf_file(mock_generate_presigned_url, mock_put_object):
+    mock_put_object.return_value = None
+    mock_generate_presigned_url.return_value = "http://mocked_s3_url/test_file.pdf"
+    
     user_id = 1
     pdf_filename = "test_file.pdf"
     pdf_content = b"dummy pdf content"
@@ -57,7 +63,12 @@ def test_upload_pdf_file():
     assert uploaded_file["test_name"] == pdf_filename
     assert "submission_date" in uploaded_file
 
-def test_upload_multiple_pdf_files():
+@patch("app.utils.s3_client.put_object")
+@patch("app.utils.s3_client.generate_presigned_url")
+def test_upload_multiple_pdf_files(mock_generate_presigned_url, mock_put_object):
+    mock_put_object.return_value = None
+    mock_generate_presigned_url.return_value = "http://mocked_s3_url/test_file.pdf"
+    
     user_id = 1
     pdf_files = [
         ("test_file1.pdf", b"dummy pdf content 1"),
@@ -82,7 +93,10 @@ def test_upload_multiple_pdf_files():
         assert uploaded_file["test_name"] == name
         assert "submission_date" in uploaded_file
 
-def test_upload_non_pdf_file():
+@patch("app.utils.s3_client.put_object")
+def test_upload_non_pdf_file(mock_put_object):
+    mock_put_object.return_value = None
+    
     user_id = 1
     non_pdf_filename = "test_file.txt"
     non_pdf_content = b"dummy text content"
@@ -93,8 +107,10 @@ def test_upload_non_pdf_file():
     assert response.json()["status"] == 400
     assert response.json()["message"] == [f"The file '{non_pdf_filename}' is not a PDF, only PDF files are allowed"]
 
-   
-def test_upload_large_pdf_file():
+@patch("app.utils.s3_client.put_object")
+def test_upload_large_pdf_file(mock_put_object):
+    mock_put_object.return_value = None
+
     user_id = 1
     large_filename = "test_large_file.pdf"
     large_file_size = MAX_FILE_SIZE + MB
@@ -106,11 +122,9 @@ def test_upload_large_pdf_file():
     assert response.json()["status"] == 400
     assert response.json()["message"] == [f"The File '{large_filename}' exceeds the size limit of '{MAX_FILE_SIZE_STRING}'"]
 
-def test_upload_pdf_files_aws_exception(monkeypatch):
-    def mock_put_object(Bucket, Key, Body):
-        raise ClientError({"Error": {"Code": "MockException", "Message": "Simulated AWS S3 Error"}}, "put_object")
-    
-    monkeypatch.setattr("app.utils.s3_client.put_object", mock_put_object)
+@patch("app.utils.s3_client.put_object")
+def test_upload_pdf_files_aws_exception(mock_put_object):
+    mock_put_object.side_effect = ClientError({"Error": {"Code": "MockException", "Message": "Simulated AWS S3 Error"}}, "put_object")
     
     user_id = 1
     pdf_filename = "test_file.pdf"
@@ -122,39 +136,50 @@ def test_upload_pdf_files_aws_exception(monkeypatch):
     assert response.json()["status"] == 500
     assert response.json()["message"] == [f"Error while uploading the file '{pdf_filename}' to AWS S3 for user '{user_id}'"]
 
-def test_delete_pdf_file_aws_exception(monkeypatch):
-    def mock_delete_object(Bucket, Key):
-        raise ClientError({"Error": {"Code": "MockException", "Message": "Simulated AWS S3 Error"}}, "delete_object")
-    
-    monkeypatch.setattr("app.utils.s3_client.delete_object", mock_delete_object)
+@patch("app.utils.s3_client.delete_object")
+@patch("app.utils.s3_client.head_object")
+def test_delete_pdf_file_aws_exception(mock_head_object, mock_delete_object):
+    mock_delete_object.side_effect = ClientError({"Error": {"Code": "MockException", "Message": "Simulated AWS S3 Error"}}, "delete_object")
+    mock_head_object.return_value = None
     
     user_id = 1
     pdf_filename = "test_file.pdf"
-    pdf_content = b"dummy pdf content"
-    file = {"files": (pdf_filename, pdf_content, "application/pdf")}
-
-    response_upload = client.post(f"/file/upload/{user_id}", files=file)
-    assert response_upload.status_code == 200
-
-    response_upload_data = response_upload.json()
-    file_id = response_upload_data['data'][0]['id']
+    with TestingSessionLocal() as db:
+        test_file = models.Test(
+            user_id=user_id,
+            test_name=pdf_filename,
+            url="http://example.com/test_file.pdf",
+            submission_date=datetime.utcnow()
+        )
+        db.add(test_file)
+        db.commit()
+    
+        file_id = test_file.id
 
     response_delete = client.delete(f"/file/delete/{user_id}/{file_id}")
     assert response_delete.status_code == 500
     assert response_delete.json()["detail"] == f"Error while deleting the file '{pdf_filename}' for user '{user_id}' on AWS S3"
 
-def test_delete_existing_pdf_file():
+@patch("app.utils.s3_client.delete_object")
+@patch("app.utils.s3_client.head_object")
+def test_delete_existing_pdf_file(mock_head_object, mock_delete_object):
+    mock_delete_object.return_value = None
+    mock_head_object.return_value = None
+    
     user_id = 1
     pdf_filename = "test_file.pdf"
-    pdf_content = b"dummy pdf content"
-    file = {"files": (pdf_filename, pdf_content, "application/pdf")}
+    with TestingSessionLocal() as db:
+        test_file = models.Test(
+            user_id=user_id,
+            test_name=pdf_filename,
+            url="http://example.com/test_file.pdf",
+            submission_date=datetime.utcnow()
+        )
+        db.add(test_file)
+        db.commit()
     
-    response_upload = client.post(f"/file/upload/{user_id}", files=file)
-    assert response_upload.status_code == 200
-    
-    response_upload_data = response_upload.json()
-    file_id = response_upload_data['data'][0]['id']
-    
+        file_id = test_file.id
+
     response_delete = client.delete(f"/file/delete/{user_id}/{file_id}")
     assert response_delete.status_code == 200
     assert response_delete.json()["message"] == f"The file '{pdf_filename}' for user '{user_id}' has been successfully deleted"
@@ -165,7 +190,7 @@ def test_delete_non_existing_pdf_file():
 
     response = client.delete(f"/file/delete/{user_id}/{non_existing_pdf_file_id}")
     assert response.status_code == 404
-    assert response.json()["detail"]  == "File not found"
+    assert response.json()["detail"] == "File not found"
 
 def test_list_user_tests_with_existing_user_id():
     user_id = 1
@@ -189,7 +214,7 @@ def test_list_user_tests_with_existing_user_id():
         db.add(test3)
         db.commit()
 
-        response = client.get(f"file/tests/{user_id}")
+        response = client.get(f"/file/tests/{user_id}")
         assert response.status_code == 200
 
         data = response.json()
@@ -199,6 +224,6 @@ def test_list_user_tests_with_existing_user_id():
 
 def test_list_user_tests_with_non_existing_user_id():
     user_id = 1
-    response = client.get(f"file/tests/{user_id}")
+    response = client.get(f"/file/tests/{user_id}")
     assert response.status_code == 404
     assert response.json()["detail"] == f"User with ID {user_id} not found"
