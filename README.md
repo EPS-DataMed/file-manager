@@ -4,7 +4,7 @@
 
 ## Descrição do Projeto
 
-Este projeto tem como objetivo fornecer uma solução completa para gerenciamento de arquivos. Utilizando tecnologias modernas, o projeto oferece funcionalidades avançadas para upload, download e organização de arquivos.
+Este projeto tem como objetivo fornecer uma solução completa para gerenciamento de arquivos. Utilizando tecnologias modernas, o projeto oferece funcionalidades avançadas para o armazenamento e a organização de arquivos.
 
 ## Pré-requisitos
 
@@ -20,7 +20,7 @@ Siga os passos abaixo para configurar o ambiente de desenvolvimento local:
 
    ```bash
    git clone <URL_DO_REPOSITORIO>
-   cd file-manager-main
+   cd file-manager
    ```
 
 2. **Crie e ative um ambiente virtual**
@@ -58,4 +58,4 @@ pytest
 
 ## Licença
 
-Este projeto está licenciado sob a [MIT License](LICENSE).
+Este projeto está licenciado sob a [MIT License](https://www.mit.edu/~amini/LICENSE.md).
