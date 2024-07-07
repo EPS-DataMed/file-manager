@@ -1,7 +1,7 @@
-fastapi
-uvicorn
-boto3
-python-dotenv
-pytest
-sqlalchemy
-psycopg2-binary
+fastapi==0.111.0
+uvicorn==0.30.1
+boto3==1.34.140
+python-dotenv==1.0.1
+pytest==8.2.2
+sqlalchemy==2.0.31
+psycopg2-binary==2.9.9
