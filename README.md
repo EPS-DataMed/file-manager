@@ -45,10 +45,10 @@ Siga os passos abaixo para configurar o ambiente de desenvolvimento local:
 5. **Execute a aplicação**
 
    ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+   uvicorn app.main:app --host 0.0.0.0 --port 8003 --reload
    ```
 
-   A aplicação estará disponível em `http://127.0.0.1:8000`.
+   A aplicação estará disponível em `http://127.0.0.1:8003`.
 
 ### Testes
 
@@ -79,7 +79,7 @@ Siga os passos abaixo para configurar o ambiente de desenvolvimento local:
     docker-compose up
     ```
 
-A aplicação estará disponível em `http://127.0.0.1:8000`.
+A aplicação estará disponível em `http://127.0.0.1:8003`.
 
 ## Licença
 
